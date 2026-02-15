@@ -1,64 +1,96 @@
 # main.py
+import typer
 import pandas as pd
-from colorama import Fore, Style
-from src import fetcher, engine, fundamentals, optimizer, simulator, visualizer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.markdown import Markdown
+from rich.live import Live
+from rich.status import Status
+from src import fetcher, engine, ai_optimizer, simulator, visualizer, verifier
 
-# === INPUTS ===
-# 8 Stocks from 4 Industries (Example List)
-# main.py (Update the TICKERS list)
+# Initialize Typer and Rich Console
+app = typer.Typer()
+console = Console()
+
+# Correct Tickers from CA Report
 TICKERS = [
-    "BEL.NS", "HAL.NS",          # Defence
-    "HDFCBANK.NS", "ICICIBANK.NS", # Banking
-    "TATASTEEL.NS", "JSL.NS",    # Metal (Fixed Spelling: TATASTEEL)
-    "TATAPOWER.NS", "NTPC.NS"    # Power
+    "ICICIBANK.NS", "SBIN.NS",      # Banking
+    "HAL.NS", "BEL.NS",             # Defence
+    "SUNPHARMA.NS", "BIOCON.NS",    # Pharma
+    "TATAPOWER.NS", "POWERGRID.NS"  # Power
 ]
 
-# CA's Manual Notes (Optional)
-CA_NOTES = {
-    "BEL.NS": {"Note": "Order book 3x revenue, Defence tailwind."},
-    "HDFCBANK.NS": {"Note": "Merger synergies kicking in 2026."}
-}
+@app.command()
+def run_analysis():
+    """
+    Run the full CBS Finance Challenge AI-Quant Pipeline.
+    """
+    console.print(Panel.fit(
+        "[bold cyan]🚀 CBS Finance Challenge: AI-Quant Pipeline[/bold cyan]\n"
+        "[dim]Strategy over Speculation | 2026 Portfolio Audit[/dim]",
+        border_style="cyan"
+    ))
 
-def main():
-    print(f"{Fore.CYAN}🚀 Starting CBS Finance Challenge Portfolio Tool...{Style.RESET_ALL}")
+    # 1. Load CA Data
+    with console.status("[bold yellow]Loading CA Research Data...[/bold yellow]"):
+        try:
+            fund_df = pd.read_csv("data/stock_universe.csv").set_index("Ticker")
+            console.print("✅ [green]CA Research Loaded from CSV.[/green]")
+        except FileNotFoundError:
+            console.print("❌ [red]Error: Create 'data/stock_universe.csv' first.[/red]")
+            raise typer.Exit()
+
+    # 2. Fetch Market Data
+    with console.status("[bold yellow]Fetching Market Data & Calculating Metrics...[/bold yellow]"):
+        prices = fetcher.fetch_data(TICKERS)
+        console.print("✅ [green]Market Data Cached and Synced.[/green]")
+
+    # 3. AI Optimization
+    with console.status("[bold magenta]Training Neural Network for Optimal Weights...[/bold magenta]"):
+        weights, theta = ai_optimizer.get_ai_weights(prices, fund_df)
+        
+        table = Table(title="AI-Optimized Weights", border_style="magenta")
+        table.add_column("Ticker", style="cyan", no_wrap=True)
+        table.add_column("Allocation (%)", justify="right", style="green")
+        table.add_column("Feature Influence", style="dim")
+
+        # Map theta importance for display
+        importance = f"ROE: {theta[0]:.2f} | PE: {theta[1]:.2f} | Upside: {theta[2]:.2f}"
+        
+        for ticker, weight in weights.items():
+            if weight > 0.005:
+                table.add_row(ticker, f"{weight*100:.2f}%", importance if ticker == TICKERS[0] else "")
+        
+        console.print(table)
+
+    # 4. MCMC Simulation
+    with console.status("[bold blue]Running Markov Chain Monte Carlo (10,000 Iterations)...[/bold blue]"):
+        sim_df = simulator.run_mcmc_simulation(prices, weights, fund_df=fund_df)
+        
+        final_mean = sim_df.iloc[-1].mean()
+        worst_case = sim_df.iloc[-1].quantile(0.05)
+
+        console.print(Panel(
+            f"[bold white]Expected Value (1 Yr):[/bold white] [green]₹{final_mean:,.2f}[/green]\n"
+            f"[bold white]Worst Case (95% Conf):[/bold white] [red]₹{worst_case:,.2f}[/red]",
+            title="[bold blue]Risk Analysis (MCMC)[/bold blue]",
+            expand=False
+        ))
+
+    # 5. Real-Time Verification
+    with console.status("[bold green]Performing Groq AI Real-Time Browser Audit...[/bold green]"):
+        live_audit = verifier.verify_with_groq(weights, fund_df)
     
-    # 1. Fetch Data
-    prices = fetcher.fetch_data(TICKERS)
+    console.print("\n[bold cyan]─── FINAL INVESTMENT INFERENCE (GROQ AI) ───[/bold cyan]")
+    # Render the Groq AI output as Markdown for a professional look
+    console.print(Markdown(live_audit))
+
+    # 6. Finalize Visualization
+    with console.status("[bold white]Generating Professional Charts...[/bold white]"):
+        visualizer.plot_monte_carlo(sim_df)
     
-    # 2. Run Engine (Math Tests)
-    print(f"\n{Fore.YELLOW}⚙️  Running Quant Engine...{Style.RESET_ALL}")
-    quant_metrics = engine.calculate_metrics(prices)
-    print(quant_metrics[['Beta', 'Exp_Return_CAPM', 'Trend_200DMA']])
-    
-    # 3. Run Fundamental Check
-    print(f"\n{Fore.YELLOW}📜 Running Fundamental Scorecard...{Style.RESET_ALL}")
-    fund_metrics = fundamentals.get_fundamental_scorecard(TICKERS, CA_NOTES)
-    print(fund_metrics[['ROE', 'Quant_Status', 'CA_Note']])
-    
-    # 4. Optimize Weights
-    print(f"\n{Fore.YELLOW}⚖️  Optimizing Portfolio (Max Sharpe, <20% Weight)...{Style.RESET_ALL}")
-    weights, perf, ef = optimizer.optimize_portfolio(prices)
-    print("✅ Optimized Weights:")
-    for ticker, weight in weights.items():
-        if weight > 0:
-            print(f"   {ticker}: {round(weight*100, 2)}%")
-            
-    print(f"\nExpected Annual Return: {perf[0]:.2%}")
-    print(f"Annual Volatility: {perf[1]:.2%}")
-    print(f"Sharpe Ratio: {perf[2]:.2f}")
-    
-    # 5. Monte Carlo Simulation
-    print(f"\n{Fore.YELLOW}🎲 Running Monte Carlo Simulation (10k Runs)...{Style.RESET_ALL}")
-    sim_df = simulator.run_monte_carlo(prices, weights)
-    
-    final_mean = sim_df.iloc[-1].mean()
-    worst_case = sim_df.iloc[-1].quantile(0.05)
-    
-    print(f"   Expected Value (1 Yr): ₹{final_mean:,.2f}")
-    print(f"   Worst Case (95% Conf): ₹{worst_case:,.2f}")
-    
-    # 6. Visualize
-    visualizer.plot_monte_carlo(sim_df)
+    console.print(f"\n[bold green]✨ Pipeline Complete.[/bold green] Charts saved to [dim]output/monte_carlo.png[/dim]")
 
 if __name__ == "__main__":
-    main()
+    app()
