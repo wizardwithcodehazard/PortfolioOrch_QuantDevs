@@ -71,7 +71,7 @@ def get_ai_weights(prices_df, fundamental_df):
     # Theta[2] (Upside): (0, None)  -> Must be Positive (High Upside is good)
     # Theta[3] (Bias):   (None, None) -> Can be anything
     
-    bounds = [(0, None), (None, 0), (0, None), (None, None)]
+    bounds = [(0.1, None), (None, -0.05), (0.2, None), (None, None)]
     
     # Initial Guess: High ROE (1.0), Low PE (-1.0), High Upside (1.0)
     init_theta = np.array([1.0, -1.0, 1.0, 0.0]) 

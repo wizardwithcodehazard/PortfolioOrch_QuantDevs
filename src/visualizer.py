@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
+import pandas as pd
 
 def plot_monte_carlo(sim_df, save_path="output/monte_carlo.png"):
     """
@@ -69,3 +70,160 @@ def plot_monte_carlo(sim_df, save_path="output/monte_carlo.png"):
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     print(f"📊 Professional Chart saved to {save_path}")
     plt.close()
+
+def plot_correlation_matrix(prices_df, save_path="output/correlation_matrix.png"):
+    """
+    Plots a correlation heatmap of the stock returns. 
+    Using Matplotlib to avoid extra dependencies (Seaborn).
+    """
+    # Calculate Log Returns
+    if '^NSEI' in prices_df.columns:
+        prices = prices_df.drop(columns=['^NSEI'])
+    else:
+        prices = prices_df
+        
+    returns = np.log(1 + prices.pct_change().dropna())
+    corr_matrix = returns.corr()
+    
+    # Setup Plot
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Plot Heatmap
+    cax = ax.matshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
+    
+    # Add Colorbar
+    fig.colorbar(cax, ax=ax, fraction=0.046, pad=0.04)
+    
+    # Add Text Annotations
+    rows, cols = corr_matrix.shape
+    for i in range(rows):
+        for j in range(cols):
+            val = corr_matrix.iloc[i, j]
+            ax.text(j, i, '{:0.2f}'.format(val), ha='center', va='center', 
+                    color='white' if abs(val) > 0.5 else 'black', fontsize=10)
+    
+    # Labels
+    tickers = corr_matrix.columns
+    ax.set_xticks(range(len(tickers)))
+    ax.set_yticks(range(len(tickers)))
+    ax.set_xticklabels(tickers, rotation=45, ha='left')
+    ax.set_yticklabels(tickers)
+    
+    ax.set_title("Asset Correlation Matrix", fontsize=16, fontweight='bold', pad=20)
+    
+    # Ensure directory exists
+    import os
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    fig.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"📊 Correlation Matrix saved to {save_path}")
+    plt.close(fig)
+
+def plot_efficient_frontier(prices_df, num_portfolios=2000, save_path="output/efficient_frontier.png"):
+    """
+    Simulates random portfolios to visualize the Efficient Frontier.
+    Plots Volatility vs. Expected Return.
+    """
+    if '^NSEI' in prices_df.columns:
+        prices = prices_df.drop(columns=['^NSEI'])
+    else:
+        prices = prices_df
+
+    # Annualized Returns & Covariance
+    returns = np.log(1 + prices.pct_change().dropna())
+    mean_daily_returns = returns.mean()
+    cov_matrix = returns.cov()
+    
+    # Portfolio Weights Simulation
+    port_returns = []
+    port_volatilities = []
+    port_sharpe_ratios = []
+
+    for _ in range(num_portfolios):
+        weights = np.random.random(len(prices.columns))
+        weights /= np.sum(weights)
+        
+        # Returns
+        ret = np.sum(mean_daily_returns * weights) * 252
+        port_returns.append(ret)
+        
+        # Volatility
+        vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
+        port_volatilities.append(vol)
+        
+        # Sharpe (Rf = 0.07)
+        sharpe = (ret - 0.07) / vol
+        port_sharpe_ratios.append(sharpe)
+    
+    # Create DataFrame
+    sim_df = pd.DataFrame({
+        'Return': port_returns, 
+        'Volatility': port_volatilities, 
+        'Sharpe': port_sharpe_ratios
+    })
+    
+    # Max Sharpe
+    max_sharpe = sim_df.iloc[sim_df['Sharpe'].idxmax()]
+    min_vol = sim_df.iloc[sim_df['Volatility'].idxmin()]
+    
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sc = ax.scatter(sim_df['Volatility'], sim_df['Return'], c=sim_df['Sharpe'], cmap='viridis', alpha=0.5, s=10)
+    fig.colorbar(sc, label='Sharpe Ratio')
+    
+    # Highlight
+    ax.scatter(max_sharpe['Volatility'], max_sharpe['Return'], c='red', s=100, marker='*', label='Max Sharpe Ratio')
+    ax.scatter(min_vol['Volatility'], min_vol['Return'], c='blue', s=100, marker='*', label='Min Volatility')
+    
+    ax.set_title('Efficient Frontier Simulation', fontsize=16, fontweight='bold')
+    ax.set_xlabel('Annualized Volatility (Risk)', fontsize=12)
+    ax.set_ylabel('Annualized Expected Return', fontsize=12)
+    ax.legend()
+    
+    # Ensure directory exists
+    import os
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    try:
+        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"📊 Efficient Frontier saved to {save_path}")
+    except Exception as e:
+        print(f"❌ FAILED to save Efficient Frontier: {e}")
+        
+    plt.close(fig)
+
+def plot_asset_allocation(weights_dict, save_path="output/asset_allocation.png"):
+    """
+    Plots a donut chart of the portfolio weights.
+    """
+    # Filter
+    labels = []
+    sizes = []
+    for t, w in weights_dict.items():
+        if w > 0.01:
+            labels.append(t)
+            sizes.append(w)
+            
+    # Normalize
+    sizes = np.array(sizes)
+    sizes = sizes / sizes.sum()
+    
+    # Plot
+    fig, ax = plt.subplots(figsize=(8, 8))
+    wedges, texts, autotexts = ax.pie(sizes, labels=labels, autopct='%1.1f%%',
+                                    startangle=90, pctdistance=0.85,
+                                    wedgeprops=dict(width=0.4, edgecolor='w'))
+                                    
+    plt.setp(texts, size=12, weight="bold")
+    plt.setp(autotexts, size=10, weight="bold", color="white")
+    
+    ax.set_title("Optimized Asset Allocation", fontsize=16, fontweight='bold')
+    
+    # Ensure directory exists
+    import os
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    fig.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"📊 Asset Allocation saved to {save_path}")
+    plt.close(fig)

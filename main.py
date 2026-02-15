@@ -44,6 +44,8 @@ def run_analysis():
     # 2. Fetch Market Data
     with console.status("[bold yellow]Fetching Market Data & Calculating Metrics...[/bold yellow]"):
         prices = fetcher.fetch_data(TICKERS)
+        visualizer.plot_correlation_matrix(prices)
+        visualizer.plot_efficient_frontier(prices)
         console.print("✅ [green]Market Data Cached and Synced.[/green]")
 
     # 3. AI Optimization
@@ -89,8 +91,9 @@ def run_analysis():
     # 6. Finalize Visualization
     with console.status("[bold white]Generating Professional Charts...[/bold white]"):
         visualizer.plot_monte_carlo(sim_df)
+        visualizer.plot_asset_allocation(weights)
     
-    console.print(f"\n[bold green]✨ Pipeline Complete.[/bold green] Charts saved to [dim]output/monte_carlo.png[/dim]")
+    console.print(f"\n[bold green]✨ Pipeline Complete.[/bold green] Charts saved to [dim]output/[/dim]")
 
 if __name__ == "__main__":
     app()

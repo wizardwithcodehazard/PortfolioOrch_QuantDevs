@@ -2,6 +2,9 @@
 import os
 import time
 from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def verify_with_groq(portfolio_weights, fund_df, max_retries=3):
     """
@@ -9,7 +12,7 @@ def verify_with_groq(portfolio_weights, fund_df, max_retries=3):
     Verifies the portfolio against sector-specific catalysts from the CA report.
     """
     # Initialize client
-    client = Groq(api_key="GROQ_API_KEY")
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     
     # 1. Dynamically identify all industries in the portfolio 
     sectors = fund_df['Sector'].unique().tolist()
